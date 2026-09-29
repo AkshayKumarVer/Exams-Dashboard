@@ -139,13 +139,31 @@ def render_dashboard():
         for activity in ACTIVITIES:
             values = selected['Status: '+activity]
             total = values.isin(['Complete', 'Pending']).sum()
-            process.append({'Process': {'Duplicate':'Duplicate Face','Probable':'Probable Match','Ops':'Photo mismatch to Ops','Delivery':'Photo mismatch to Delivery'}.get(activity,activity), 'Completion %': values.eq('Complete').sum()/total*100 if total else None})
-        bars(pd.DataFrame(process),'Process','Completion %',color='#367bf5',percent=True,order=[p['Process'] for p in process])
+            done = int(values.eq('Complete').sum())
+            process.append({'Done': done, 'Total': int(total), 'Process': {'Duplicate':'Duplicate Face','Probable':'Probable Match','Ops':'Photo mismatch to Ops','Delivery':'Photo mismatch to Delivery'}.get(activity,activity), 'Completion %': done/total*100 if total else None})
+        process_frame = pd.DataFrame(process)
+        process_frame['Label'] = process_frame.apply(
+            lambda row: (f"{row['Completion %']:.1f}%" if pd.notna(row['Completion %']) else 'N/A')
+            + f" | Done {row['Done']:,} / Total {row['Total']:,}", axis=1)
+        process_frame['Plot completion'] = process_frame['Completion %'].fillna(0)
+        process_chart = alt.Chart(process_frame).encode(
+            y=alt.Y('Process:N', sort=[p['Process'] for p in process], title=None,
+                    axis=alt.Axis(labelLimit=240, ticks=False, domain=False)),
+            x=alt.X('Plot completion:Q', title='Completion (%)', scale=alt.Scale(domain=[0,100]),
+                    axis=alt.Axis(gridColor='#edf0f5', domain=False)),
+            tooltip=[alt.Tooltip('Process:N'), alt.Tooltip('Completion %:Q', format='.1f'),
+                     alt.Tooltip('Done:Q'), alt.Tooltip('Total:Q')])
+        process_bars = process_chart.mark_bar(color='#367bf5', cornerRadiusEnd=4, size=16)
+        process_labels = process_chart.mark_text(align='left', dy=-17, color='#243c57').encode(
+            x=alt.value(2), text='Label:N')
+        st.altair_chart((process_bars + process_labels).properties(height=350)
+                       .configure_view(stroke=None), width='stretch')
     with right:
         cases = []
         for label, source in {'Impersonation reported': 'Impersonation cases reported', 'Impersonation found': 'Impersonations found', **{k:v for k,v in CASE_COLUMNS.items() if k != 'Impersonation'}}.items():
             values = number(selected[source])
-            cases.append({'Case type':label,'Reported count':values.sum(min_count=1),'Across Exams':int(values.notna().sum())})
+            across_exams = (values.notna() & values.ne(0)).sum() if label == 'Impersonation found' else values.notna().sum()
+            cases.append({'Case type':label,'Reported count':values.sum(min_count=1),'Across Exams':int(across_exams)})
         st.dataframe(pd.DataFrame(cases), hide_index=True, width='stretch', column_config={'Reported count':st.column_config.NumberColumn(format='localized')})
 
     st.subheader('IMPERSONATION CASES BY OWNER')
