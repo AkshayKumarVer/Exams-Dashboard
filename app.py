@@ -79,6 +79,136 @@ from zoneinfo import ZoneInfo
 import altair as alt
 from analytics import ACTIVITIES, CASE_COLUMNS, COLORS, prepare, owner_summary, attention, number, rollup
 
+def render_dashboard():
+    metrics = [('Exams',len(selected)), ('Candidates',selected['Candidates'].sum(min_count=1)), ('Centres',selected['Centres'].sum(min_count=1)), ('Clients',selected['Client'].nunique()), ('Owners',selected.loc[selected.Owner.ne('Unassigned'),'Owner'].nunique())]
+    for col, (label, value) in zip(st.columns(5), metrics):
+        col.metric(label, compact(value) if label == 'Candidates' else ('—' if pd.isna(value) else f'{value:,.0f}'))
+    for col, (label, key) in zip(st.columns(3), [('Completed','Complete'),('Pending (not sent)','Pending'),('Not evaluated','N/A')]):
+        col.metric(label, int(selected['Status'].eq(key).sum()))
+    if selected.empty:
+        st.info('No exams match these filters. Choose another month, client, owner, or status.')
+
+
+    def bars(frame, label, value, color='#367bf5', percent=False, order=None):
+        if frame.empty or frame[value].notna().sum() == 0:
+            st.caption('No data available for these filters.')
+            return
+        scale = alt.Scale(domain=[0,100]) if percent else alt.Scale(zero=True)
+        frame = frame.copy()
+        frame['Display value'] = frame[value].map(lambda v: '?' if pd.isna(v) else (f'{v:.1f}%' if percent else compact(v)))
+        sort = order if order is not None else '-x'
+        chart = alt.Chart(frame).mark_bar(cornerRadiusEnd=4, size=19).encode(
+            y=alt.Y(f'{label}:N', sort=sort, title=None, axis=alt.Axis(labelLimit=240, ticks=False, domain=False)),
+            x=alt.X(f'{value}:Q', title=None, scale=scale, axis=alt.Axis(format='.0f' if percent else '~s', gridColor='#edf0f5', domain=False)),
+            color=alt.value(color),
+            tooltip=[alt.Tooltip(f'{label}:N'),alt.Tooltip(f'{value}:Q',format=',.1f' if percent else ',.0f')])
+        text = chart.mark_text(align='left', dx=5, color='#243c57').encode(text=alt.Text('Display value:N'))
+        st.altair_chart((chart + text).properties(height=max(145, len(frame)*36)).configure_view(stroke=None), width='stretch')
+
+    st.subheader('WORKLOAD OVERVIEW')
+    st.caption('Three months ending in the selected month · client, owner, and status filters apply.')
+    periods = pd.period_range(end=month, periods=3, freq='M').astype(str).tolist()
+    history = base[base.Month.isin(periods)].groupby('Month').agg(Exams=('Exam','size'),Candidates=('Candidates',lambda s:s.sum(min_count=1))).reindex(periods)
+    history['Exams'] = history['Exams'].fillna(0)
+    history['Month label'] = [pd.Timestamp(m+'-01').strftime('%b %Y') for m in history.index]
+    left, right = st.columns(2)
+    with left:
+        st.markdown('**EXAMS BY MONTH**')
+        bars(history.reset_index(), 'Month label','Exams',order=history['Month label'].tolist())
+    with right:
+        st.markdown('**CANDIDATES BY MONTH**')
+        bars(history.reset_index(), 'Month label','Candidates',color='#12a899',order=history['Month label'].tolist())
+    summary = owner_summary(selected)
+    st.subheader('OWNER WORKLOAD')
+    left, right = st.columns(2)
+    with left:
+        st.markdown('**EXAMS BY OWNER**')
+        bars(summary,'Owner','Exams')
+    with right:
+        st.markdown('**CANDIDATE WORKLOAD**')
+        bars(summary,'Owner','Candidates',color='#12a899')
+
+    st.subheader('OWNER PERFORMANCE')
+    st.caption('Exam, candidate and centre workload for the selected month.')
+    st.dataframe(summary[['Owner','Exams','Candidates','Centres']], hide_index=True, width='stretch', column_config={c:st.column_config.NumberColumn(c,format='localized') for c in ['Exams','Candidates','Centres']})
+
+    st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
+    left, right = st.columns([1.4,1])
+    with left:
+        process = []
+        for activity in ACTIVITIES:
+            values = selected['Status: '+activity]
+            total = values.isin(['Complete', 'Pending']).sum()
+            process.append({'Process': {'Duplicate':'Duplicate Face','Probable':'Probable Match','Ops':'Photo mismatch to Ops','Delivery':'Photo mismatch to Delivery'}.get(activity,activity), 'Completion %': values.eq('Complete').sum()/total*100 if total else None})
+        bars(pd.DataFrame(process),'Process','Completion %',color='#367bf5',percent=True,order=[p['Process'] for p in process])
+    with right:
+        cases = []
+        for label, source in {'Impersonation reported': 'Impersonation cases reported', 'Impersonation found': 'Impersonations found', **{k:v for k,v in CASE_COLUMNS.items() if k != 'Impersonation'}}.items():
+            values = number(selected[source])
+            cases.append({'Case type':label,'Reported count':values.sum(min_count=1),'Across Exams':int(values.notna().sum())})
+        st.dataframe(pd.DataFrame(cases), hide_index=True, width='stretch', column_config={'Reported count':st.column_config.NumberColumn(format='localized')})
+
+    st.subheader('IMPERSONATION CASES BY OWNER')
+    st.caption('Reported and found cases for each owner in the current selection.')
+    comparison_rows = []
+    for owner_name, group in selected.groupby('Owner', sort=True):
+        for series_name, source in [('Reported', 'Impersonation cases reported'), ('Found', 'Impersonations found')]:
+            counts = number(group[source]) if source in group else pd.Series(dtype=float)
+            comparison_rows.append({'Owner': owner_name, 'Case type': series_name, 'Cases': counts.sum(min_count=1), 'Numeric records': int(counts.notna().sum())})
+    comparison = pd.DataFrame(comparison_rows, columns=['Owner', 'Case type', 'Cases', 'Numeric records'])
+    if comparison.empty or comparison['Cases'].notna().sum() == 0:
+        st.info('No numeric impersonation counts are available for this selection.')
+    else:
+        comparison['Label'] = comparison['Cases'].map(lambda v: 'No data' if pd.isna(v) else f'{v:,.0f}')
+        comparison['Plot cases'] = comparison['Cases'].fillna(0)
+        grouped = alt.Chart(comparison).encode(
+            x=alt.X('Owner:N', title=None, axis=alt.Axis(labelAngle=0)),
+            xOffset=alt.XOffset('Case type:N', sort=['Reported', 'Found']),
+            y=alt.Y('Plot cases:Q', title='Cases', scale=alt.Scale(zero=True), axis=alt.Axis(tickMinStep=1)),
+            color=alt.Color('Case type:N', title=None, scale=alt.Scale(domain=['Reported','Found'], range=['#367bf5','#12a899'])),
+            tooltip=[alt.Tooltip('Owner:N'), alt.Tooltip('Case type:N'), alt.Tooltip('Label:N', title='Cases'), alt.Tooltip('Numeric records:Q')])
+        chart_bars = grouped.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+        chart_labels = grouped.mark_text(dy=-10, color='#243c57').encode(text='Label:N', color=alt.value('#243c57'))
+        st.altair_chart((chart_bars + chart_labels).properties(height=300).configure_view(stroke=None), width='stretch')
+        st.caption('Blank and nonnumeric counts are excluded. No data means no numeric count was supplied; it does not mean zero.')
+
+    st.subheader('ACTIVITY COMPLETION HEATMAP')
+    st.caption('Green = Complete | Red = Not sent | Gray = no evaluated activity')
+    heat = '<div style="overflow-x:auto"><table class="heatmap"><thead><tr><th>Owner</th>' + ''.join('<th>'+escape(a)+'</th>' for a in ACTIVITIES) + '</tr></thead><tbody>'
+    for name, group in selected.groupby('Owner'):
+        heat += '<tr><td>'+escape(name)+'</td>'
+        for activity in ACTIVITIES:
+            values = group['Status: '+activity]
+            state = rollup(values)
+            state = {'Not sent': 'Pending', 'WIP': 'N/A'}.get(state, state)
+            color = COLORS.get(state, '#8090a2')
+            label = {'Pending': 'NOT SENT', 'Complete': 'COMPLETE'}.get(state, chr(8212))
+            detail = ', '.join(f"{'Not sent' if k == 'Pending' else k}: {v}" for k,v in values[values.ne('N/A')].value_counts().items()) or 'No evaluated activity'
+            heat += f'<td title="{escape(detail, quote=True)}" style="color:{color};background:{color}18;border:1px solid {color}30">{escape(label)}</td>'
+        heat += '</tr>'
+    heat += '</tbody></table></div>'
+    st.markdown(heat, unsafe_allow_html=True)
+    st.caption('Not sent is the only pending activity. Blank and WIP cells are excluded. Hover for evaluated activity counts.')
+
+    st.subheader('ATTENTION REQUIRED')
+    st.caption('Only activities marked Not sent, for exams that have started.')
+    actions = attention(selected, today)[['Owner','Client','Exam','Date','Activity','Status']]
+    if actions.empty:
+        st.success('No outstanding activities for exams that have started in this selection.')
+    else:
+        st.dataframe(actions, hide_index=True, width='stretch', height=min(600, 38+len(actions)*35))
+        st.download_button('Download outstanding actions',actions.to_csv(index=False).encode('utf-8-sig'),'exam_followups.csv','text/csv')
+
+
+def render_info_page():
+    from dashboard_info import render_info
+    render_info(raw.loc[selected.index], data, selected, cancelled)
+
+
+dashboard_page = st.Page(render_dashboard, title='Dashboard', default=True)
+info_page = st.Page(render_info_page, title='Info', url_path='info')
+page = st.navigation([dashboard_page, info_page], position='hidden')
+
 st.markdown("""<style>
 .stApp {background:#f5f7fb;}
 .block-container {max-width:1440px;padding-top:2.1rem;}
@@ -97,7 +227,7 @@ st.title('EXAM OPERATIONS DASHBOARD')
 with st.sidebar:
     st.header('Data connection')
     st.link_button('Open Google Sheet', SHEET_URL)
-    header_row = st.number_input('Header row', min_value=1, value=1, step=1)
+    header_row = st.number_input('Header row', min_value=1, value=1, step=1, key='header_row')
     if st.button('Refresh data', type='primary', width='stretch'):
         load_sheet.clear()
     st.caption('Data is cached for 60 seconds. Refresh to fetch changes immediately.')
@@ -121,11 +251,17 @@ if not months:
 today = datetime.now(ZoneInfo('Asia/Kolkata')).date()
 current_month = today.strftime('%Y-%m')
 default_month = months.index(current_month) if current_month in months else 0
+def remember_filter(key):
+    st.session_state.setdefault('saved_filters', {})[key] = st.session_state[key]
+
+for filter_key, filter_value in st.session_state.get('saved_filters', {}).items():
+    st.session_state[filter_key] = filter_value
+
 f1, f2, f3, f4 = st.columns([1.4,1,1,1])
-month = f1.selectbox('Month', months, index=default_month, format_func=lambda m: pd.Timestamp(m + '-01').strftime('%B %Y'))
-client = f2.selectbox('Client', ['All'] + sorted(data['Client'].unique()))
-owner = f3.selectbox('Owner', ['All'] + sorted(data['Owner'].unique()))
-status = f4.selectbox('Status', ['All','Complete','Pending','N/A'])
+month = f1.selectbox('Month', months, index=default_month, key='filter_month', on_change=remember_filter, args=('filter_month',), format_func=lambda m: pd.Timestamp(m + '-01').strftime('%B %Y'))
+client = f2.selectbox('Client', ['All'] + sorted(data['Client'].unique()), key='filter_client', on_change=remember_filter, args=('filter_client',))
+owner = f3.selectbox('Owner', ['All'] + sorted(data['Owner'].unique()), key='filter_owner', on_change=remember_filter, args=('filter_owner',))
+status = f4.selectbox('Status', ['All','Complete','Pending','N/A'], key='filter_status', on_change=remember_filter, args=('filter_status',))
 base = data.copy()
 if client != 'All':
     base = base[base['Client'].eq(client)]
@@ -144,144 +280,19 @@ def compact(value):
         return f'{value / 1000:,.1f}K'
     return f'{value:,.0f}'
 
-metrics = [('Exams',len(selected)), ('Candidates',selected['Candidates'].sum(min_count=1)), ('Centres',selected['Centres'].sum(min_count=1)), ('Clients',selected['Client'].nunique()), ('Owners',selected.loc[selected.Owner.ne('Unassigned'),'Owner'].nunique())]
-for col, (label, value) in zip(st.columns(5), metrics):
-    col.metric(label, compact(value) if label == 'Candidates' else ('—' if pd.isna(value) else f'{value:,.0f}'))
-for col, (label, key) in zip(st.columns(3), [('Completed','Complete'),('Pending (not sent)','Pending'),('Not evaluated','N/A')]):
-    col.metric(label, int(selected['Status'].eq(key).sum()))
-if selected.empty:
-    st.info('No exams match these filters. Choose another month, client, owner, or status.')
-
-
-def bars(frame, label, value, color='#367bf5', percent=False, order=None):
-    if frame.empty or frame[value].notna().sum() == 0:
-        st.caption('No data available for these filters.')
-        return
-    scale = alt.Scale(domain=[0,100]) if percent else alt.Scale(zero=True)
-    frame = frame.copy()
-    frame['Display value'] = frame[value].map(lambda v: '?' if pd.isna(v) else (f'{v:.1f}%' if percent else compact(v)))
-    sort = order if order is not None else '-x'
-    chart = alt.Chart(frame).mark_bar(cornerRadiusEnd=4, size=19).encode(
-        y=alt.Y(f'{label}:N', sort=sort, title=None, axis=alt.Axis(labelLimit=180, ticks=False, domain=False)),
-        x=alt.X(f'{value}:Q', title=None, scale=scale, axis=alt.Axis(format='.0f' if percent else '~s', gridColor='#edf0f5', domain=False)),
-        color=alt.value(color),
-        tooltip=[alt.Tooltip(f'{label}:N'),alt.Tooltip(f'{value}:Q',format=',.1f' if percent else ',.0f')])
-    text = chart.mark_text(align='left', dx=5, color='#243c57').encode(text=alt.Text('Display value:N'))
-    st.altair_chart((chart + text).properties(height=max(145, len(frame)*36)).configure_view(stroke=None), width='stretch')
-
-st.subheader('WORKLOAD OVERVIEW')
-st.caption('Three months ending in the selected month · client, owner, and status filters apply.')
-periods = pd.period_range(end=month, periods=3, freq='M').astype(str).tolist()
-history = base[base.Month.isin(periods)].groupby('Month').agg(Exams=('Exam','size'),Candidates=('Candidates',lambda s:s.sum(min_count=1))).reindex(periods)
-history['Exams'] = history['Exams'].fillna(0)
-history['Month label'] = [pd.Timestamp(m+'-01').strftime('%b %Y') for m in history.index]
-left, right = st.columns(2)
-with left:
-    st.markdown('**EXAMS BY MONTH**')
-    bars(history.reset_index(), 'Month label','Exams',order=history['Month label'].tolist())
-with right:
-    st.markdown('**CANDIDATES BY MONTH**')
-    bars(history.reset_index(), 'Month label','Candidates',color='#12a899',order=history['Month label'].tolist())
-summary = owner_summary(selected)
-st.subheader('OWNER WORKLOAD')
-left, right = st.columns(2)
-with left:
-    st.markdown('**EXAMS BY OWNER**')
-    bars(summary,'Owner','Exams')
-with right:
-    st.markdown('**CANDIDATE WORKLOAD**')
-    bars(summary,'Owner','Candidates',color='#12a899')
-
-st.subheader('OWNER PERFORMANCE')
-st.caption('A consolidated view of owner workload, completion percentage and outstanding actions for the selected month.')
-st.dataframe(summary.drop(columns='Completion'), hide_index=True, width='stretch', column_config={c:st.column_config.NumberColumn(c,format='localized') for c in ['Exams','Candidates','Centres','Shifts','Clients']})
-
-st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
-left, right = st.columns([1.4,1])
-with left:
-    process = []
-    for activity in list(ACTIVITIES)[:5]:
-        values = selected['Status: '+activity]
-        total = values.isin(['Complete', 'Pending']).sum()
-        process.append({'Process': {'Duplicate':'Duplicate Face','Probable':'Probable Match'}.get(activity,activity), 'Completion %': values.eq('Complete').sum()/total*100 if total else None})
-    bars(pd.DataFrame(process),'Process','Completion %',color='#367bf5',percent=True,order=[p['Process'] for p in process])
-with right:
-    cases = []
-    for label, source in CASE_COLUMNS.items():
-        values = number(selected[source])
-        cases.append({'Case type':label,'Count':values.sum(min_count=1),'Rows reported':int(values.notna().sum())})
-    st.dataframe(pd.DataFrame(cases), hide_index=True, width='stretch', column_config={'Count':st.column_config.NumberColumn(format='localized')})
-    st.caption('Impersonation and poor-photo counts use reported cases. Blank or nonnumeric counts are unknown, not zero; totals include numeric entries only.')
-
-st.subheader('IMPERSONATION CASES BY OWNER')
-st.caption('Reported and found cases for each owner in the current selection.')
-comparison_rows = []
-for owner_name, group in selected.groupby('Owner', sort=True):
-    for series_name, source in [('Reported', 'Impersonation cases reported'), ('Found', 'Impersonations found')]:
-        counts = number(group[source]) if source in group else pd.Series(dtype=float)
-        comparison_rows.append({'Owner': owner_name, 'Case type': series_name, 'Cases': counts.sum(min_count=1), 'Numeric records': int(counts.notna().sum())})
-comparison = pd.DataFrame(comparison_rows, columns=['Owner', 'Case type', 'Cases', 'Numeric records'])
-if comparison.empty or comparison['Cases'].notna().sum() == 0:
-    st.info('No numeric impersonation counts are available for this selection.')
-else:
-    comparison['Label'] = comparison['Cases'].map(lambda v: 'No data' if pd.isna(v) else f'{v:,.0f}')
-    comparison['Plot cases'] = comparison['Cases'].fillna(0)
-    grouped = alt.Chart(comparison).encode(
-        x=alt.X('Owner:N', title=None, axis=alt.Axis(labelAngle=0)),
-        xOffset=alt.XOffset('Case type:N', sort=['Reported', 'Found']),
-        y=alt.Y('Plot cases:Q', title='Cases', scale=alt.Scale(zero=True), axis=alt.Axis(tickMinStep=1)),
-        color=alt.Color('Case type:N', title=None, scale=alt.Scale(domain=['Reported','Found'], range=['#367bf5','#12a899'])),
-        tooltip=[alt.Tooltip('Owner:N'), alt.Tooltip('Case type:N'), alt.Tooltip('Label:N', title='Cases'), alt.Tooltip('Numeric records:Q')])
-    chart_bars = grouped.mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
-    chart_labels = grouped.mark_text(dy=-10, color='#243c57').encode(text='Label:N', color=alt.value('#243c57'))
-    st.altair_chart((chart_bars + chart_labels).properties(height=300).configure_view(stroke=None), width='stretch')
-    st.caption('Blank and nonnumeric counts are excluded. No data means no numeric count was supplied; it does not mean zero.')
-
-st.subheader('COMPLETION PERCENTAGE')
-st.caption('Complete / (Complete + Not sent). Blank and WIP cells are excluded from both counts.')
-bars(summary.rename(columns={'Completion':'Completion %'}),'Owner','Completion %',color='#12a899',percent=True)
-st.subheader('ACTIVITY COMPLETION HEATMAP')
-st.caption('Green = Complete | Red = Not sent | Gray = no evaluated activity')
-heat = '<div style="overflow-x:auto"><table class="heatmap"><thead><tr><th>Owner</th>' + ''.join('<th>'+escape(a)+'</th>' for a in ACTIVITIES) + '</tr></thead><tbody>'
-for name, group in selected.groupby('Owner'):
-    heat += '<tr><td>'+escape(name)+'</td>'
-    for activity in ACTIVITIES:
-        values = group['Status: '+activity]
-        state = rollup(values)
-        state = {'Not sent': 'Pending', 'WIP': 'N/A'}.get(state, state)
-        color = COLORS.get(state, '#8090a2')
-        label = {'Pending': 'NOT SENT', 'Complete': 'COMPLETE'}.get(state, chr(8212))
-        detail = ', '.join(f"{'Not sent' if k == 'Pending' else k}: {v}" for k,v in values[values.ne('N/A')].value_counts().items()) or 'No evaluated activity'
-        heat += f'<td title="{escape(detail, quote=True)}" style="color:{color};background:{color}18;border:1px solid {color}30">{escape(label)}</td>'
-    heat += '</tr>'
-heat += '</tbody></table></div>'
-st.markdown(heat, unsafe_allow_html=True)
-st.caption('Not sent is the only pending activity. Blank and WIP cells are excluded. Hover for evaluated activity counts.')
-
-st.subheader('ATTENTION REQUIRED')
-st.caption('Only activities marked Not sent, for exams that have started. Age is calendar days since the first exam date (India time), not an SLA or days overdue.')
-actions = attention(selected, today)
-if actions.empty:
-    st.success('No outstanding activities for exams that have started in this selection.')
-else:
-    st.dataframe(actions, hide_index=True, width='stretch', height=min(600, 38+len(actions)*35))
-    st.download_button('Download outstanding actions',actions.to_csv(index=False).encode('utf-8-sig'),'exam_followups.csv','text/csv')
-
-with st.expander('Calculation rules & data quality'):
-    st.markdown('''- **Exams:** one populated exam-code row is one operation; combined codes remain one operation. Cancelled/discarded operations are excluded.
-- **Month:** first listed exam date; a multi-month operation is counted only in its starting month. Dates without a month or year are excluded from monthly views.
-- **Completion:** Done, Sent, and No cases count as complete. Only Not sent counts as pending. Blank cells, WIP, other notes, Not required, N/A, and dashes are ignored. Completion is Complete / (Complete + Not sent), across the seven activity columns; no evaluated cells means no percentage.
-- **Overall status:** Any Not sent cell makes the operation Pending. Otherwise, at least one completed cell makes it Complete. Operations with only ignored cells are N/A (Not evaluated). Ignoring a cell does not remove its exam or workload from totals.
-- **Counts:** candidates, centres, and shifts are summed as provided per row; centres are not distinct physical locations. Missing or invalid numeric values are omitted. Unassigned owners are shown separately and excluded from the Owners KPI.
-- **Heatmap:** shows Not sent if any evaluated cell is Not sent, otherwise Complete if any is completed, or gray if all cells are ignored. Process charts show the five named processes; owner completion also includes Ops and Delivery.''')
-    invalid = data[data.Date.isna()][['Client','Exam','Exam Date','Owner']]
-    if not invalid.empty:
-        st.warning(f'{len(invalid)} operations have unrecognized dates and are excluded from monthly views.')
-        st.dataframe(invalid,hide_index=True,width='stretch')
-    missing_counts = {col:int(selected[col].isna().sum()) for col in ['Candidates','Centres','Shifts']}
-    st.write('Missing or invalid numeric values in this selection:',missing_counts)
-    st.caption(f'{cancelled} cancelled/discarded rows excluded from all dashboard totals.')
-with st.expander('View selected exam records'):
-    cols = ['Client','Exam','Exam Date','Owner','Status','Candidates','Centres','Shifts']
-    st.dataframe(selected[cols],hide_index=True,width='stretch')
-    st.download_button('Download selected exams',selected[cols].to_csv(index=False).encode('utf-8-sig'),'selected_exams.csv','text/csv')
+download_col, info_col = st.columns([9, 1])
+with download_col:
+    st.download_button(
+        'Download complete data',
+        raw.loc[selected.index].to_csv(index=False).encode('utf-8-sig'),
+        f'exam_operations_{month}.csv',
+        'text/csv',
+        help='All original sheet columns for the rows matching the current filters.',
+        key='download_complete_data')
+with info_col:
+    if page.url_path == 'info':
+        if st.button('Back', key='back_to_dashboard', width='stretch'):
+            st.switch_page(dashboard_page)
+    elif st.button('Info', key='open_info', width='stretch'):
+        st.switch_page(info_page)
+page.run()

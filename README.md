@@ -40,7 +40,7 @@ When these secrets exist the app automatically uses the read-only Sheets API and
 
 ## Deploy on Streamlit Community Cloud
 
-1. Push app.py, analytics.py, requirements.txt, README.md, .streamlit/config.toml, and .gitignore to a GitHub repository.
+1. Push app.py, analytics.py, dashboard_info.py, requirements.txt, README.md, .streamlit/config.toml, and .gitignore to a GitHub repository.
 2. Sign in at https://share.streamlit.io and select Create app.
 3. Select the repository and branch, and set the entrypoint to app.py.
 4. For a private sheet, paste the TOML above with real values into Advanced settings > Secrets. Do not upload secrets.toml to GitHub.
@@ -61,3 +61,8 @@ One populated exam-code row counts as one operation. Combined codes stay togethe
 Done/Sent/No cases are complete. Only Not sent is pending. Blank cells, WIP, non-applicable values, and other notes are ignored in status and completion calculations. Completion = Complete / (Complete + Not sent), across all seven activities. Any Not sent makes the operation or owner/activity Pending; otherwise at least one completed cell makes it Complete. All-ignored operations are N/A (Not evaluated), with no completion percentage. Exam and workload totals still include these operations. Age is days since exam start in India time, not a contractual due date. Future exams do not appear in attention required.
 
 Run calculation checks with `.\.venv\Scripts\python -m unittest test_analytics -v`.
+
+
+## Dashboard layout
+
+The Info button opens a separate page for calculation rules, data quality, and original filtered records. Filters persist when moving between pages. Download complete data exports all original columns for the filtered rows. Owner performance shows Owner, Exams, Candidates, and Centres. Process completion includes all seven activities. The case table distinguishes impersonation reported and found, with Reported count and Across Exams columns. Attention required shows Owner first and omits Age, Stage, and Sheet note. The standalone owner completion percentage section is removed.
