@@ -118,28 +118,45 @@ def draw_process(frame, title):
     summary['Start'] = 0
     summary['End'] = 100
     summary['Percent label'] = summary['Completion %'].map(lambda value: f'{value:.1f}%')
-    summary['Done label'] = summary['Done'].map(lambda value: f'Done {value:,}')
-    summary['Total label'] = summary['Total'].map(lambda value: f'Total {value:,}')
+    summary['Done label'] = summary['Done'].map(lambda value: f'{value:,}')
+    summary['Done position'] = summary['Completion %'].map(lambda value: max(4, value / 2))
+    summary['Total label'] = summary['Total'].map(lambda value: f'{value:,}')
     chart = alt.Chart(summary).encode(
         y=alt.Y('Process:N',sort=summary.Process.tolist(),title=None,
                 axis=alt.Axis(labelLimit=240,ticks=False,domain=False)),
         tooltip=[alt.Tooltip('Process:N'),alt.Tooltip('Completion %:Q',format='.1f'),
                  alt.Tooltip('Done:Q'),alt.Tooltip('Not sent:Q'),alt.Tooltip('WIP:Q'),alt.Tooltip('Total:Q')])
     def position(field):
-        return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[-12,115]))
+        return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[0,113]))
     # Red is the entire remainder, including Not sent and WIP.
-    remainder = chart.mark_bar(color='#d34b55',size=20).encode(
+    remainder = chart.mark_bar(color='#d34b55',size=36).encode(
         x=position('Completion %:Q'),x2='End:Q')
-    done = chart.mark_bar(color='#16845b',size=20).encode(
+    done = chart.mark_bar(color='#16845b',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
-    percentage = chart.mark_text(align='right',dx=-9,color='#243c57',fontWeight='bold').encode(
-        x=position('Start:Q'),text='Percent label:N')
-    done_count = chart.mark_text(align='center',dy=-20,color='#16845b',fontWeight='bold').encode(
-        x=position('Completion %:Q'),text='Done label:N')
-    total_count = chart.mark_text(align='left',dx=9,color='#243c57',fontWeight='bold').encode(
+    percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
+        x=position('End:Q'),text='Percent label:N')
+    done_count = chart.mark_text(align='center',color='white',fontWeight='bold',fontSize=14).encode(
+        x=position('Done position:Q'),text='Done label:N')
+    total_count = chart.mark_text(align='right',dx=-10,color='white',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Total label:N')
     st.altair_chart((remainder+done+percentage+done_count+total_count)
-                   .properties(height=385).configure_view(stroke=None),width='stretch')
+                   .properties(height=420).configure_view(stroke=None),width='stretch')
+
+
+def aligned_table(frame):
+    def display(value):
+        if pd.isna(value):
+            return 'No data'
+        if isinstance(value, (int, float)):
+            return f'{value:,.0f}' if float(value).is_integer() else f'{value:,.2f}'
+        return str(value)
+    html = '<div class="table-scroll"><table class="data-table"><thead><tr>'
+    html += ''.join('<th>'+escape(str(c))+'</th>' for c in frame.columns)
+    html += '</tr></thead><tbody>'
+    for row in frame.itertuples(index=False, name=None):
+        html += '<tr>'+''.join('<td>'+escape(display(v))+'</td>' for v in row)+'</tr>'
+    html += '</tbody></table></div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def draw_heatmap(frame, title):
@@ -165,13 +182,19 @@ st.markdown('''<style>
 .stApp {background:#f5f7fb;}
 .block-container {max-width:1440px;padding-top:2.1rem;}
 h1 {color:#142842;font-size:2rem!important;letter-spacing:.035em;}
-h3 {color:#233952;font-size:1.05rem!important;letter-spacing:.045em;margin-top:1rem;}
+h3 {color:#233952;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
 [data-testid="stMetric"] {background:white;border:1px solid #e2e8f1;border-radius:12px;padding:18px 20px;}
 [data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;}
 [data-testid="stMetricValue"] {color:#142842;font-weight:750;}
 .heatmap {width:100%;border-collapse:separate;border-spacing:5px;font-size:12px;}
 .heatmap th {text-align:left;font-size:11px;padding:10px 5px;text-transform:uppercase;}
 .heatmap td {border-radius:6px;padding:13px 8px;font-weight:600;white-space:nowrap;}
+.table-scroll {width:100%;overflow:auto;max-height:600px;}
+.data-table {width:100%;border-collapse:collapse;background:white;font-size:14px;}
+.data-table th,.data-table td {padding:13px 15px;border-bottom:1px solid #e2e8f1;}
+.data-table th {background:#edf2f8;font-weight:650;}
+.data-table td,.data-table th,.heatmap td,.heatmap th {text-align:center;}
+.data-table td:first-child,.data-table th:first-child,.heatmap td:first-child,.heatmap th:first-child {text-align:left;}
 </style>''',unsafe_allow_html=True)
 st.title('EXAM OPERATIONS DASHBOARD')
 with st.sidebar:
@@ -229,40 +252,42 @@ with left:
     st.markdown('**EXAMS BY OWNER**')
     bars(summary,'Owner','Exams',order=owner_order)
 with right:
-    st.markdown('**CANDIDATE WORKLOAD**')
+    st.markdown('**TOTAL CANDIDATES**')
     bars(summary,'Owner','Candidates',color='#12a899',order=owner_order)
 st.subheader('OWNER PERFORMANCE')
-st.dataframe(summary[['Owner','Exams','Candidates','Centres']],hide_index=True,width='stretch')
+aligned_table(summary[['Owner','Exams','Candidates','Centres']])
 st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
-# Full-width charts leave room for the process names and count labels.
+case_column, impersonation_column = st.columns([1,1.3])
+with case_column:
+    cases=[]
+    for label,source in {'Impersonation reported':'Impersonation cases reported','Impersonation found':'Impersonations found',**{k:v for k,v in CASE_COLUMNS.items() if k!='Impersonation'}}.items():
+        values = number(active[source])
+        across = (values.notna() & values.ne(0)).sum() if label=='Impersonation found' else values.notna().sum()
+        cases.append({'Case type':label,'Reported count':values.sum(min_count=1),'Across Exams':int(across)})
+    aligned_table(pd.DataFrame(cases))
+with impersonation_column:
+    st.markdown('**IMPERSONATION CASES BY OWNER**')
+    comparison=[]
+    for owner_name,group in active.groupby('Owner',sort=True):
+        for label,source in [('Reported','Impersonation cases reported'),('Found','Impersonations found')]:
+            values=number(group[source])
+            comparison.append({'Owner':owner_name,'Case type':label,'Cases':values.sum(min_count=1)})
+    comparison=pd.DataFrame(comparison,columns=['Owner','Case type','Cases'])
+    if comparison.empty:
+        st.info('No matching exams.')
+    else:
+        comparison['Label']=comparison.Cases.map(lambda n:'No data' if pd.isna(n) else f'{n:,.0f}')
+        comparison['Plot']=comparison.Cases.fillna(0)
+        chart=alt.Chart(comparison).encode(
+            x=alt.X('Owner:N',sort=owner_order,title=None,axis=alt.Axis(labelAngle=0,ticks=False,domain=False)),
+            xOffset=alt.XOffset('Case type:N',sort=['Reported','Found']),
+            y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
+            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#367bf5','#12a899'])),
+            tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
+        st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None),width='stretch')
+
 draw_process(completed,'COMPLETED EXAMS')
 draw_process(wip,'WIP EXAMS')
-cases=[]
-for label,source in {'Impersonation reported':'Impersonation cases reported','Impersonation found':'Impersonations found',**{k:v for k,v in CASE_COLUMNS.items() if k!='Impersonation'}}.items():
-    values = number(active[source])
-    across = (values.notna() & values.ne(0)).sum() if label=='Impersonation found' else values.notna().sum()
-    cases.append({'Case type':label,'Reported count':values.sum(min_count=1),'Across Exams':int(across)})
-st.dataframe(pd.DataFrame(cases),hide_index=True,width='stretch')
-
-st.subheader('IMPERSONATION CASES BY OWNER')
-comparison=[]
-for owner_name,group in active.groupby('Owner',sort=True):
-    for label,source in [('Reported','Impersonation cases reported'),('Found','Impersonations found')]:
-        values=number(group[source])
-        comparison.append({'Owner':owner_name,'Case type':label,'Cases':values.sum(min_count=1)})
-comparison=pd.DataFrame(comparison,columns=['Owner','Case type','Cases'])
-if comparison.empty:
-    st.info('No matching exams.')
-else:
-    comparison['Label']=comparison.Cases.map(lambda n:'No data' if pd.isna(n) else f'{n:,.0f}')
-    comparison['Plot']=comparison.Cases.fillna(0)
-    chart=alt.Chart(comparison).encode(
-        x=alt.X('Owner:N',sort=owner_order,title=None,axis=alt.Axis(labelAngle=0,ticks=False,domain=False)),
-        xOffset=alt.XOffset('Case type:N',sort=['Reported','Found']),
-        y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
-        color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#367bf5','#12a899'])),
-        tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
-    st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None),width='stretch')
 
 st.subheader('ACTIVITY COMPLETION HEATMAP')
 draw_heatmap(completed,'COMPLETED EXAMS')
@@ -272,5 +297,5 @@ actions=attention(active,today)[['Owner','Client','Exam','Date','Activity','Stat
 if actions.empty:
     st.success('No reports awaiting sending.')
 else:
-    st.dataframe(actions,hide_index=True,width='stretch')
+    aligned_table(actions)
     st.download_button('Download outstanding actions',actions.to_csv(index=False).encode('utf-8-sig'),'exam_followups.csv','text/csv')

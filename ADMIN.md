@@ -29,4 +29,6 @@ Attention required retains only Not sent activities from non-cancelled exams who
 
 The Google Sheet is cached for 60 seconds. Refresh data forces a fresh read; idle pages do not poll automatically. Date warnings are available in server logs. No public Info route is registered.
 
-Process bars use green for Done and red for the remainder (Not sent plus WIP). Percentage is at the front, Done count at the green boundary, and Total count at the bar end. All counts remain available on hover.
+Process bars use green for Done and red for the remainder (Not sent plus WIP). Process bars are thicker with the numeric done count inside the green section and numeric total inside the end of the bar; the percentage is outside on the right. At zero completion the zero count appears inside the red bar. All counts remain available on hover.
+
+Case counts and the impersonation owner chart sit side by side before the process charts. Dashboard tables use escaped HTML for consistent first-column-left and remaining-columns-centered alignment. Original data downloads remain available.
