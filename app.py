@@ -14,7 +14,7 @@ SHEET_ID = "1tA5QngIq4DP0ynHShbLBPV0rPD1b8dok2Br2VD3WR7k"
 GID = 1596592637
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit#gid={GID}"
 
-st.set_page_config(page_title="Exam Operations Dashboard", page_icon=chr(0x1F4CA), layout="wide")
+st.set_page_config(page_title="Product Dashboard", page_icon=chr(0x1F4CA), layout="wide")
 
 
 def check_response(response):
@@ -92,7 +92,7 @@ def compact(value):
     return f'{value:,.0f}'
 
 
-def bars(frame, label, value, color='#367bf5', order=None):
+def bars(frame, label, value, color='#469ec2', order=None):
     if frame.empty:
         st.info('No matching exams.')
         return
@@ -106,7 +106,7 @@ def bars(frame, label, value, color='#367bf5', order=None):
         tooltip=[alt.Tooltip(f'{label}:N'),alt.Tooltip(f'{value}:Q',format=',.0f')])
     bar = chart.mark_bar(color=color,cornerRadiusEnd=4,size=19)
     labels = chart.mark_text(align='left',dx=5,color='#243c57').encode(text='Display:N')
-    st.altair_chart((bar+labels).properties(height=max(145,len(frame)*36)).configure_view(stroke=None),width='stretch')
+    st.altair_chart((bar+labels).properties(height=max(145,len(frame)*36)).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
 
 
 def draw_process(frame, title):
@@ -140,7 +140,7 @@ def draw_process(frame, title):
     total_count = chart.mark_text(align='right',dx=-10,color='white',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Total label:N')
     st.altair_chart((remainder+done+percentage+done_count+total_count)
-                   .properties(height=420).configure_view(stroke=None),width='stretch')
+                   .properties(height=420).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
 
 
 def aligned_table(frame):
@@ -179,24 +179,25 @@ def draw_heatmap(frame, title):
 
 
 st.markdown('''<style>
-.stApp {background:#f5f7fb;}
+.stApp {background:#cfecf7;}
+[data-testid="stSidebar"] {background:#a0d9ef;}
 .block-container {max-width:1440px;padding-top:2.1rem;}
 h1 {color:#142842;font-size:2rem!important;letter-spacing:.035em;}
 h3 {color:#233952;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
-[data-testid="stMetric"] {background:white;border:1px solid #e2e8f1;border-radius:12px;padding:18px 20px;}
+[data-testid="stMetric"] {background:#a0d9ef;border:1px solid #88cbe3;border-radius:12px;padding:18px 20px;}
 [data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;}
 [data-testid="stMetricValue"] {color:#142842;font-weight:750;}
 .heatmap {width:100%;border-collapse:separate;border-spacing:5px;font-size:12px;}
 .heatmap th {text-align:left;font-size:11px;padding:10px 5px;text-transform:uppercase;}
 .heatmap td {border-radius:6px;padding:13px 8px;font-weight:600;white-space:nowrap;}
 .table-scroll {width:100%;overflow:auto;max-height:600px;}
-.data-table {width:100%;border-collapse:collapse;background:white;font-size:14px;}
-.data-table th,.data-table td {padding:13px 15px;border-bottom:1px solid #e2e8f1;}
-.data-table th {background:#edf2f8;font-weight:650;}
+.data-table {width:100%;border-collapse:collapse;background:#e8f6fc;font-size:14px;}
+.data-table th,.data-table td {padding:13px 15px;border-bottom:1px solid #a0d9ef;}
+.data-table th {background:#a0d9ef;font-weight:650;}
 .data-table td,.data-table th,.heatmap td,.heatmap th {text-align:center;}
 .data-table td:first-child,.data-table th:first-child,.heatmap td:first-child,.heatmap th:first-child {text-align:left;}
 </style>''',unsafe_allow_html=True)
-st.title('EXAM OPERATIONS DASHBOARD')
+st.title('PRODUCT DASHBOARD')
 with st.sidebar:
     st.link_button('Open Google Sheet',SHEET_URL)
     if st.button('Refresh data',type='primary',width='stretch'):
@@ -243,7 +244,7 @@ with left:
     bars(history,'Month label','Exams')
 with right:
     st.markdown('**CANDIDATES BY MONTH**')
-    bars(history,'Month label','Candidates',color='#12a899')
+    bars(history,'Month label','Candidates',color='#88cbe3')
 summary = owner_summary(selected)
 owner_order = summary.Owner.tolist()
 st.subheader('OWNER WORKLOAD')
@@ -253,7 +254,7 @@ with left:
     bars(summary,'Owner','Exams',order=owner_order)
 with right:
     st.markdown('**TOTAL CANDIDATES**')
-    bars(summary,'Owner','Candidates',color='#12a899',order=owner_order)
+    bars(summary,'Owner','Candidates',color='#88cbe3',order=owner_order)
 st.subheader('OWNER PERFORMANCE')
 aligned_table(summary[['Owner','Exams','Candidates','Centres']])
 st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
@@ -282,9 +283,9 @@ with impersonation_column:
             x=alt.X('Owner:N',sort=owner_order,title=None,axis=alt.Axis(labelAngle=0,ticks=False,domain=False)),
             xOffset=alt.XOffset('Case type:N',sort=['Reported','Found']),
             y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
-            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#367bf5','#12a899'])),
+            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#469ec2','#a0d9ef'])),
             tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
-        st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None),width='stretch')
+        st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
 
 draw_process(completed,'COMPLETED EXAMS')
 draw_process(wip,'WIP EXAMS')
