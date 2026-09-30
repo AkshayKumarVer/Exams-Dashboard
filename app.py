@@ -129,9 +129,9 @@ def draw_process(frame, title):
     def position(field):
         return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[0,113]))
     # Lighter blue is the remainder, including Not sent and WIP.
-    remainder = chart.mark_bar(color='#cfecf7',size=36).encode(
+    remainder = chart.mark_bar(color='#a0d9ef',size=36).encode(
         x=position('Completion %:Q'),x2='End:Q')
-    done = chart.mark_bar(color='#a0d9ef',size=36).encode(
+    done = chart.mark_bar(color='#469ec2',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
     percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Percent label:N')
