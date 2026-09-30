@@ -19,7 +19,7 @@ CASE_COLUMNS = {
     'Poor Photo': 'Poor quality enrol photo reported',
 }
 NUMBERS = {'Candidates': 'Candidate count', 'Centres': 'Centres', 'Shifts': 'Shift'}
-COLORS = {'Complete': '#16845b', 'Pending': '#d34b55', 'N/A': '#8090a2'}
+COLORS = {'Complete': '#16845b', 'Not sent': '#d34b55', 'WIP': '#b28a06', 'N/A': '#8090a2'}
 MONTHS = {m: i for i, m in enumerate(['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'], 1)}
 
 
@@ -52,21 +52,21 @@ def number(series):
 
 
 def normalize_status(value):
+    if pd.isna(value) or not str(value).strip():
+        return 'WIP'
     value = re.sub(r'\s+', ' ', str(value).strip().lower())
-    if value in {'done', 'complete', 'completed', 'sent', 'no cases'}:
-        return 'Complete'
     if value == 'not sent':
-        return 'Pending'
-    # Blank, WIP, non-applicable cells and other notes are not evaluated.
-    return 'N/A'
+        return 'Not sent'
+    if value in {'wip', 'in progress', 'work in progress'}:
+        return 'WIP'
+    return 'Complete'
 
 
 def rollup(values):
     values = set(values)
-    if 'Pending' in values:
-        return 'Pending'
-    if 'Complete' in values:
-        return 'Complete'
+    for status in ['Not sent', 'WIP', 'Complete']:
+        if status in values:
+            return status
     return 'N/A'
 
 
@@ -86,15 +86,22 @@ def prepare(raw):
         df[name] = number(df[source])
     for name, (_, source) in ACTIVITIES.items():
         df['Status: ' + name] = df[source].map(normalize_status)
-    df['Status'] = df[['Status: ' + a for a in ACTIVITIES]].apply(rollup, axis=1)
-    cancelled = df.get('Data cleaned by MIS', pd.Series('', index=df.index)).astype(str).str.contains('cancelled|canceled', case=False, regex=True)
-    cancelled |= df[ACTIVITIES['Delivery'][1]].astype(str).str.contains('exam cancelled|discarded', case=False, regex=True)
-    return df.loc[~cancelled].copy(), int(cancelled.sum())
+    sources = [source for _, source in ACTIVITIES.values()]
+    filled = df[sources].apply(lambda column: column.astype(str).str.strip().ne(''))
+    cancelled = df.get('Data cleaned by MIS', pd.Series('', index=df.index)).astype(str).str.strip().str.lower().isin(['cancelled', 'canceled'])
+    df['Cancelled'] = cancelled
+    df['Complete exam'] = filled.all(axis=1) & ~cancelled
+    df['WIP exam'] = ~filled.all(axis=1) & ~cancelled
+    df['Report Not sent'] = df[['Status: ' + a for a in ACTIVITIES]].eq('Not sent').any(axis=1) & ~cancelled
+    df['Status'] = 'WIP'
+    df.loc[df['Complete exam'], 'Status'] = 'Complete'
+    df.loc[cancelled, 'Status'] = 'Cancelled exams'
+    return df, int(cancelled.sum())
 
 
 def completion(frame):
     values = frame[['Status: ' + a for a in ACTIVITIES]]
-    applicable = values.isin(['Complete', 'Pending']).sum().sum()
+    applicable = values.isin(['Complete', 'Not sent', 'WIP']).sum().sum()
     return float(values.eq('Complete').sum().sum() / applicable * 100) if applicable else None
 
 
@@ -112,8 +119,35 @@ def attention(frame, today):
             continue
         for activity, (stage, source) in ACTIVITIES.items():
             status = row['Status: ' + activity]
-            if status != 'Pending':
+            if status != 'Not sent' or row.get('Cancelled', False):
                 continue
             rows.append({'Age': (today - row['Date'].date()).days, 'Client': row['Client'], 'Exam': row['Exam'], 'Date': row['Date'].strftime('%d %b %Y'), 'Owner': row['Owner'], 'Stage': stage, 'Activity': activity, 'Status': 'Not sent', 'Sheet note': str(row[source]).strip() or '(blank)'})
     result = pd.DataFrame(rows, columns=['Age','Client','Exam','Date','Owner','Stage','Activity','Status','Sheet note'])
     return result.sort_values(['Age','Owner'], ascending=[False,True]) if not result.empty else result
+
+
+def filter_operations(data, months=None, clients=None, owners=None, statuses=None):
+    result = data
+    for column, choices in [('Month', months), ('Client', clients), ('Owner', owners)]:
+        if choices:
+            result = result[result[column].isin(choices)]
+    if statuses:
+        mask = pd.Series(False, index=result.index)
+        for status in statuses:
+            mask |= result[{'Complete':'Complete exam','WIP':'WIP exam','Cancelled exams':'Cancelled','Report Not sent':'Report Not sent'}[status]]
+        result = result[mask]
+    return result.copy()
+
+
+def process_summary(frame):
+    rows = []
+    for activity in ACTIVITIES:
+        values = frame['Status: ' + activity]
+        done = int(values.eq('Complete').sum())
+        not_sent = int(values.eq('Not sent').sum())
+        wip = int(values.eq('WIP').sum())
+        total = len(values)
+        rows.append({'Process': {'Duplicate':'Duplicate Face','Probable':'Probable Match','Ops':'Photo mismatch to Ops','Delivery':'Photo mismatch to Delivery'}.get(activity,activity),
+                     'Done':done, 'Not sent':not_sent, 'WIP':wip, 'Total':total,
+                     'Completion %':done / total * 100 if total else 0})
+    return pd.DataFrame(rows)
