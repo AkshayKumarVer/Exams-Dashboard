@@ -106,7 +106,7 @@ def bars(frame, label, value, color='#469ec2', order=None):
         tooltip=[alt.Tooltip(f'{label}:N'),alt.Tooltip(f'{value}:Q',format=',.0f')])
     bar = chart.mark_bar(color=color,cornerRadiusEnd=4,size=19)
     labels = chart.mark_text(align='left',dx=5,color='#243c57').encode(text='Display:N')
-    st.altair_chart((bar+labels).properties(height=max(145,len(frame)*36)).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
+    st.altair_chart((bar+labels).properties(height=max(145,len(frame)*36)).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
 
 def draw_process(frame, title):
@@ -128,19 +128,19 @@ def draw_process(frame, title):
                  alt.Tooltip('Done:Q'),alt.Tooltip('Not sent:Q'),alt.Tooltip('WIP:Q'),alt.Tooltip('Total:Q')])
     def position(field):
         return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[0,113]))
-    # Red is the entire remainder, including Not sent and WIP.
-    remainder = chart.mark_bar(color='#d34b55',size=36).encode(
+    # Lighter blue is the remainder, including Not sent and WIP.
+    remainder = chart.mark_bar(color='#cfecf7',size=36).encode(
         x=position('Completion %:Q'),x2='End:Q')
-    done = chart.mark_bar(color='#16845b',size=36).encode(
+    done = chart.mark_bar(color='#a0d9ef',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
     percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Percent label:N')
-    done_count = chart.mark_text(align='center',color='white',fontWeight='bold',fontSize=14).encode(
+    done_count = chart.mark_text(align='center',color='#142842',fontWeight='bold',fontSize=14).encode(
         x=position('Done position:Q'),text='Done label:N')
-    total_count = chart.mark_text(align='right',dx=-10,color='white',fontWeight='bold',fontSize=14).encode(
+    total_count = chart.mark_text(align='right',dx=-10,color='#142842',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Total label:N')
     st.altair_chart((remainder+done+percentage+done_count+total_count)
-                   .properties(height=420).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
+                   .properties(height=420).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
 
 def aligned_table(frame):
@@ -179,7 +179,7 @@ def draw_heatmap(frame, title):
 
 
 st.markdown('''<style>
-.stApp {background:#cfecf7;}
+.stApp {background:#ffffff;}
 [data-testid="stSidebar"] {background:#a0d9ef;}
 .block-container {max-width:1440px;padding-top:2.1rem;}
 h1 {color:#142842;font-size:2rem!important;letter-spacing:.035em;}
@@ -285,7 +285,7 @@ with impersonation_column:
             y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
             color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#469ec2','#a0d9ef'])),
             tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
-        st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None).configure(background='#cfecf7'),width='stretch')
+        st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
 draw_process(completed,'COMPLETED EXAMS')
 draw_process(wip,'WIP EXAMS')
