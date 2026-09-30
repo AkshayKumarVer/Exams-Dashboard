@@ -180,20 +180,20 @@ def draw_heatmap(frame, title):
 
 st.markdown('''<style>
 .stApp {background:#ffffff;}
-[data-testid="stSidebar"] {background:#a0d9ef;}
+[data-testid="stSidebar"] {background:#f7f7f7;}
 .block-container {max-width:1440px;padding-top:2.1rem;}
-h1 {color:#142842;font-size:2rem!important;letter-spacing:.035em;}
-h3 {color:#233952;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
-[data-testid="stMetric"] {background:#a0d9ef;border:1px solid #88cbe3;border-radius:12px;padding:18px 20px;}
+h1 {color:#222222;font-size:2rem!important;letter-spacing:.035em;}
+h3 {color:#222222;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
+[data-testid="stMetric"] {background:#ffffff;border:1px solid #dddddd;border-radius:12px;padding:18px 20px;}
 [data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;}
-[data-testid="stMetricValue"] {color:#142842;font-weight:750;}
+[data-testid="stMetricValue"] {color:#222222;font-weight:750;}
 .heatmap {width:100%;border-collapse:separate;border-spacing:5px;font-size:12px;}
 .heatmap th {text-align:left;font-size:11px;padding:10px 5px;text-transform:uppercase;}
 .heatmap td {border-radius:6px;padding:13px 8px;font-weight:600;white-space:nowrap;}
 .table-scroll {width:100%;overflow:auto;max-height:600px;}
-.data-table {width:100%;border-collapse:collapse;background:#e8f6fc;font-size:14px;}
-.data-table th,.data-table td {padding:13px 15px;border-bottom:1px solid #a0d9ef;}
-.data-table th {background:#a0d9ef;font-weight:650;}
+.data-table {width:100%;border-collapse:collapse;background:#ffffff;font-size:14px;}
+.data-table th,.data-table td {padding:13px 15px;border-bottom:1px solid #dddddd;}
+.data-table th {background:#f5f5f5;font-weight:650;}
 .data-table td,.data-table th,.heatmap td,.heatmap th {text-align:center;}
 .data-table td:first-child,.data-table th:first-child,.heatmap td:first-child,.heatmap th:first-child {text-align:left;}
 </style>''',unsafe_allow_html=True)
@@ -244,7 +244,7 @@ with left:
     bars(history,'Month label','Exams')
 with right:
     st.markdown('**CANDIDATES BY MONTH**')
-    bars(history,'Month label','Candidates',color='#88cbe3')
+    bars(history,'Month label','Candidates',color='#469ec2')
 summary = owner_summary(selected)
 owner_order = summary.Owner.tolist()
 st.subheader('OWNER WORKLOAD')
@@ -254,7 +254,7 @@ with left:
     bars(summary,'Owner','Exams',order=owner_order)
 with right:
     st.markdown('**TOTAL CANDIDATES**')
-    bars(summary,'Owner','Candidates',color='#88cbe3',order=owner_order)
+    bars(summary,'Owner','Candidates',color='#469ec2',order=owner_order)
 st.subheader('OWNER PERFORMANCE')
 aligned_table(summary[['Owner','Exams','Candidates','Centres']])
 st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
