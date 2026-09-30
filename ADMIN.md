@@ -28,3 +28,5 @@ Download complete data exports original sheet columns and values for the exact f
 Attention required retains only Not sent activities from non-cancelled exams whose starting date has arrived (India time). Blank cells and literal WIP are not added to attention required.
 
 The Google Sheet is cached for 60 seconds. Refresh data forces a fresh read; idle pages do not poll automatically. Date warnings are available in server logs. No public Info route is registered.
+
+Process bars use green for Done and red for the remainder (Not sent plus WIP). Percentage is at the front, Done count at the green boundary, and Total count at the bar end. All counts remain available on hover.

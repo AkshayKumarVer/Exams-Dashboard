@@ -115,15 +115,31 @@ def draw_process(frame, title):
         st.info('No matching exams.')
         return
     summary = process_summary(frame)
-    summary['Label'] = summary.apply(lambda r: f"{r['Completion %']:.1f}% | Done {r['Done']} | Not sent {r['Not sent']} | Total {r['Total']}",axis=1)
+    summary['Start'] = 0
+    summary['End'] = 100
+    summary['Percent label'] = summary['Completion %'].map(lambda value: f'{value:.1f}%')
+    summary['Done label'] = summary['Done'].map(lambda value: f'Done {value:,}')
+    summary['Total label'] = summary['Total'].map(lambda value: f'Total {value:,}')
     chart = alt.Chart(summary).encode(
         y=alt.Y('Process:N',sort=summary.Process.tolist(),title=None,
                 axis=alt.Axis(labelLimit=240,ticks=False,domain=False)),
-        x=alt.X('Completion %:Q',axis=None,title=None,scale=alt.Scale(domain=[0,100])),
-        tooltip=[alt.Tooltip('Process:N'),alt.Tooltip('Done:Q'),alt.Tooltip('Not sent:Q'),alt.Tooltip('WIP:Q'),alt.Tooltip('Total:Q')])
-    bar = chart.mark_bar(color='#367bf5',size=16,cornerRadiusEnd=4)
-    labels = chart.mark_text(align='left',dy=-17,color='#243c57',fontSize=11).encode(x=alt.value(2),text='Label:N')
-    st.altair_chart((bar+labels).properties(height=365).configure_view(stroke=None),width='stretch')
+        tooltip=[alt.Tooltip('Process:N'),alt.Tooltip('Completion %:Q',format='.1f'),
+                 alt.Tooltip('Done:Q'),alt.Tooltip('Not sent:Q'),alt.Tooltip('WIP:Q'),alt.Tooltip('Total:Q')])
+    def position(field):
+        return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[-12,115]))
+    # Red is the entire remainder, including Not sent and WIP.
+    remainder = chart.mark_bar(color='#d34b55',size=20).encode(
+        x=position('Completion %:Q'),x2='End:Q')
+    done = chart.mark_bar(color='#16845b',size=20).encode(
+        x=position('Start:Q'),x2='Completion %:Q')
+    percentage = chart.mark_text(align='right',dx=-9,color='#243c57',fontWeight='bold').encode(
+        x=position('Start:Q'),text='Percent label:N')
+    done_count = chart.mark_text(align='center',dy=-20,color='#16845b',fontWeight='bold').encode(
+        x=position('Completion %:Q'),text='Done label:N')
+    total_count = chart.mark_text(align='left',dx=9,color='#243c57',fontWeight='bold').encode(
+        x=position('End:Q'),text='Total label:N')
+    st.altair_chart((remainder+done+percentage+done_count+total_count)
+                   .properties(height=385).configure_view(stroke=None),width='stretch')
 
 
 def draw_heatmap(frame, title):
