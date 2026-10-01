@@ -36,7 +36,7 @@ Case counts and the impersonation owner chart sit side by side before the proces
 
 ## Sheet-button processing report
 
-Open Google Sheet downloads exam_processing_report.csv and opens the original sheet in a new tab from the same user click. The report uses the currently loaded sheet snapshot (refresh first for newer changes) and covers all populated source rows, independent of dashboard filters. Sheet row numbers preserve blank-row positions.
+Open Google Sheet downloads exam_processing_report.csv and opens the original sheet in a new tab from the same user click. The report uses the currently loaded sheet snapshot (refresh first for newer changes) and includes only rows not processed or excluded from date-based analysis because their date cannot be parsed. Processed rows, including numeric warnings, are omitted. This is a source-data exclusion report, not a list of rows hidden by the selected client, owner, status, or month filters. A clean sheet produces a headers-only report. Sheet row numbers preserve blank-row positions.
 
 Report classifications distinguish Not processed (missing exam code or required columns), Partially processed - date issue (omitted by month filtering), Processed with warnings (such as missing/nonnumeric counts), and Processed. Missing optional case counts and blank activity cells are not processing errors. Cancelled exams are valid records with their existing exclusions. Negative or fractional numeric counts are flagged but their current dashboard treatment remains unchanged. Source URL and fetch time are included. Formula-like strings are exported as literal text for Excel safety.
 

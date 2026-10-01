@@ -73,6 +73,7 @@ def audit_rows(raw, header_row=1):
 
 def report_csv(raw, source_url, fetched_at):
     audit = audit_rows(raw)
+    audit = audit[audit['Processing result'].isin(['Not processed', 'Partially processed - date issue'])].copy()
     audit['Source'] = source_url
     audit['Fetched at'] = fetched_at
     # Keep sheet-provided strings as text rather than executable Excel formulas.
