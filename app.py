@@ -206,8 +206,10 @@ st.markdown('''<style>
 h1 {color:#222222;font-size:2rem!important;letter-spacing:.035em;}
 h3 {color:#222222;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
 [data-testid="stMetric"] {background:#ffffff;border:1px solid #dddddd;border-radius:12px;padding:18px 20px;text-align:center;}
-[data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;justify-content:center;width:100%;}
-[data-testid="stMetricLabel"] p {text-align:center;width:100%;}
+[data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;display:flex!important;justify-content:center!important;align-items:center;width:100%!important;text-align:center!important;}
+[data-testid="stMetricLabel"] > div {display:flex!important;justify-content:center!important;width:100%!important;}
+[data-testid="stMetricLabel"] [data-testid="stMarkdownContainer"] {width:100%!important;text-align:center!important;}
+[data-testid="stMetricLabel"] p {text-align:center!important;width:100%!important;margin-left:auto!important;margin-right:auto!important;}
 [data-testid="stMetricValue"] {color:#222222;font-weight:750;text-align:center;width:100%;}
 [data-testid="stMetricValue"] > div {text-align:center;}
 .heatmap {width:100%;border-collapse:separate;border-spacing:5px;font-size:12px;}
