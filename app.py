@@ -164,19 +164,39 @@ def draw_heatmap(frame, title):
     if frame.empty:
         st.info('No matching exams.')
         return
-    html = '<div style="overflow-x:auto"><table class="heatmap"><thead><tr><th>Owner</th>'
-    html += ''.join('<th>'+escape(a)+'</th>' for a in ACTIVITIES) + '</tr></thead><tbody>'
-    for owner_name, group in frame.groupby('Owner',sort=True):
-        html += '<tr><td>'+escape(owner_name)+'</td>'
+    cells = []
+    for owner_name, group in frame.groupby('Owner', sort=True):
         for activity in ACTIVITIES:
-            values = group['Status: '+activity]
+            values = group['Status: ' + activity]
             state = rollup(values)
-            color = COLORS.get(state,'#8090a2')
-            hover = ' | '.join(f'{s}: {int(values.eq(s).sum()):,}/{len(values):,}' for s in ['Complete','Not sent','WIP'])
-            hover += f" | Completion: {values.eq('Complete').mean()*100:.1f}%"
-            html += f'<td title="{escape(hover,quote=True)}" style="color:{color};background:{color}18;border:1px solid {color}30">{escape(state.upper())}</td>'
-        html += '</tr>'
-    st.markdown(html+'</tbody></table></div>',unsafe_allow_html=True)
+            cell = {'Owner': owner_name, 'Process': activity, 'State': state,
+                    'Label': state.upper(),
+                    'Completion %': f"{values.eq('Complete').mean()*100:.1f}%"}
+            for status in ['Complete', 'Not sent', 'WIP']:
+                cell[status] = f"{int(values.eq(status).sum()):,}/{len(values):,}"
+            cells.append(cell)
+    heatmap = alt.Chart(pd.DataFrame(cells)).encode(
+        x=alt.X('Process:N', sort=list(ACTIVITIES), title=None,
+                axis=alt.Axis(orient='top', labelAngle=0, labelLimit=160,
+                              ticks=False, domain=False, labelPadding=12),
+                scale=alt.Scale(paddingInner=0.05, paddingOuter=0.02)),
+        y=alt.Y('Owner:N', sort=sorted(frame.Owner.unique()), title=None,
+                axis=alt.Axis(ticks=False, domain=False, labelPadding=12),
+                scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06)),
+        color=alt.Color('State:N', legend=None,
+                        scale=alt.Scale(domain=['Complete','Not sent','WIP'],
+                                        range=[COLORS['Complete'],COLORS['Not sent'],COLORS['WIP']])),
+        tooltip=[alt.Tooltip('Owner:N'), alt.Tooltip('Process:N'),
+                 alt.Tooltip('Completion %:N'), alt.Tooltip('Complete:N'),
+                 alt.Tooltip('Not sent:N'), alt.Tooltip('WIP:N')])
+    backgrounds = heatmap.mark_rect(cornerRadius=6, fillOpacity=0.12, strokeWidth=1).encode(
+        stroke=alt.Stroke('State:N', legend=None,
+                         scale=alt.Scale(domain=['Complete','Not sent','WIP'],
+                                         range=[COLORS['Complete'],COLORS['Not sent'],COLORS['WIP']])),
+        strokeOpacity=alt.value(0.25))
+    labels = heatmap.mark_text(fontSize=12, fontWeight=600).encode(text='Label:N')
+    st.altair_chart((backgrounds + labels).properties(height=max(52,frame.Owner.nunique()*52))
+                   .configure_view(stroke=None).configure(background='#ffffff'), width='stretch')
 
 
 st.markdown('''<style>

@@ -43,3 +43,5 @@ Report classifications distinguish Not processed (missing exam code or required 
 The report is CSV, as requested, and opens in Excel. The browser must allow downloads and opening a new tab for the app. No file is downloaded during page render; the action requires the user's click. The report remains available even when required columns cause dashboard preparation to fail, provided the sheet itself can be loaded.
 
 The owner summary table is part of Owner Workload. Process bars show one centered done/total count, with the percentage at the right. Process and heatmap hover values use Complete, Not sent, and WIP counts divided by their cohort total. The follow-up CSV button is labeled Download action report. Card values and labels are centered.
+
+Heatmaps use the same Vega-Lite tooltip renderer as the process charts: a white tooltip with Owner, Process, Completion %, Complete, Not sent and WIP on separate rows. Count values retain the count/total format.
