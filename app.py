@@ -119,14 +119,15 @@ def draw_process(frame, title):
     summary['Start'] = 0
     summary['End'] = 100
     summary['Percent label'] = summary['Completion %'].map(lambda value: f'{value:.1f}%')
-    summary['Done label'] = summary['Done'].map(lambda value: f'{value:,}')
-    summary['Done position'] = summary['Completion %'].map(lambda value: max(4, value / 2))
-    summary['Total label'] = summary['Total'].map(lambda value: f'{value:,}')
+    summary['Count label'] = summary.apply(lambda row: f"{int(row['Done']):,}/{int(row['Total']):,}", axis=1)
+    summary['Count position'] = 50
+    for status in ['Done', 'Not sent', 'WIP']:
+        summary[status + ' ratio'] = summary.apply(lambda row: f"{int(row[status]):,}/{int(row['Total']):,}", axis=1)
     chart = alt.Chart(summary).encode(
         y=alt.Y('Process:N',sort=summary.Process.tolist(),title=None,
                 axis=alt.Axis(labelLimit=240,ticks=False,domain=False)),
         tooltip=[alt.Tooltip('Process:N'),alt.Tooltip('Completion %:Q',format='.1f'),
-                 alt.Tooltip('Done:Q'),alt.Tooltip('Not sent:Q'),alt.Tooltip('WIP:Q'),alt.Tooltip('Total:Q')])
+                 alt.Tooltip('Done ratio:N',title='Complete'),alt.Tooltip('Not sent ratio:N',title='Not sent'),alt.Tooltip('WIP ratio:N',title='WIP')])
     def position(field):
         return alt.X(field,axis=None,title=None,scale=alt.Scale(domain=[0,113]))
     # Lighter blue is the remainder, including Not sent and WIP.
@@ -137,10 +138,8 @@ def draw_process(frame, title):
     percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Percent label:N')
     done_count = chart.mark_text(align='center',color='#142842',fontWeight='bold',fontSize=14).encode(
-        x=position('Done position:Q'),text='Done label:N')
-    total_count = chart.mark_text(align='right',dx=-10,color='#142842',fontWeight='bold',fontSize=14).encode(
-        x=position('End:Q'),text='Total label:N')
-    st.altair_chart((remainder+done+percentage+done_count+total_count)
+        x=position('Count position:Q'),text='Count label:N')
+    st.altair_chart((remainder+done+percentage+done_count)
                    .properties(height=420).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
 
@@ -173,7 +172,8 @@ def draw_heatmap(frame, title):
             values = group['Status: '+activity]
             state = rollup(values)
             color = COLORS.get(state,'#8090a2')
-            hover = ' | '.join(f'{s}: {int(values.eq(s).sum())}' for s in ['Complete','Not sent','WIP'])
+            hover = ' | '.join(f'{s}: {int(values.eq(s).sum()):,}/{len(values):,}' for s in ['Complete','Not sent','WIP'])
+            hover += f" | Completion: {values.eq('Complete').mean()*100:.1f}%"
             html += f'<td title="{escape(hover,quote=True)}" style="color:{color};background:{color}18;border:1px solid {color}30">{escape(state.upper())}</td>'
         html += '</tr>'
     st.markdown(html+'</tbody></table></div>',unsafe_allow_html=True)
@@ -185,9 +185,11 @@ st.markdown('''<style>
 .block-container {max-width:1440px;padding-top:2.1rem;}
 h1 {color:#222222;font-size:2rem!important;letter-spacing:.035em;}
 h3 {color:#222222;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1rem;}
-[data-testid="stMetric"] {background:#ffffff;border:1px solid #dddddd;border-radius:12px;padding:18px 20px;}
-[data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;}
-[data-testid="stMetricValue"] {color:#222222;font-weight:750;}
+[data-testid="stMetric"] {background:#ffffff;border:1px solid #dddddd;border-radius:12px;padding:18px 20px;text-align:center;}
+[data-testid="stMetricLabel"] {text-transform:uppercase;font-size:.75rem;justify-content:center;width:100%;}
+[data-testid="stMetricLabel"] p {text-align:center;width:100%;}
+[data-testid="stMetricValue"] {color:#222222;font-weight:750;text-align:center;width:100%;}
+[data-testid="stMetricValue"] > div {text-align:center;}
 .heatmap {width:100%;border-collapse:separate;border-spacing:5px;font-size:12px;}
 .heatmap th {text-align:left;font-size:11px;padding:10px 5px;text-transform:uppercase;}
 .heatmap td {border-radius:6px;padding:13px 8px;font-weight:600;white-space:nowrap;}
@@ -259,7 +261,6 @@ with left:
 with right:
     st.markdown('**TOTAL CANDIDATES**')
     bars(summary,'Owner','Candidates',color='#469ec2',order=owner_order)
-st.subheader('OWNER PERFORMANCE')
 aligned_table(summary[['Owner','Exams','Candidates','Centres']])
 st.subheader('PROCESS COMPLETION & CASE ANALYTICS')
 case_column, impersonation_column = st.columns([1,1.3])
@@ -303,4 +304,4 @@ if actions.empty:
     st.success('No reports awaiting sending.')
 else:
     aligned_table(actions)
-    st.download_button('Download outstanding actions',actions.to_csv(index=False).encode('utf-8-sig'),'exam_followups.csv','text/csv')
+    st.download_button('Download action report',actions.to_csv(index=False).encode('utf-8-sig'),'exam_followups.csv','text/csv')
