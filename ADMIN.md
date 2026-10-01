@@ -32,3 +32,12 @@ The Google Sheet is cached for 60 seconds. Refresh data forces a fresh read; idl
 Process bars use #469ec2 for Done and #a0d9ef for the remainder (Not sent plus WIP). Process bars are thicker with the numeric done count inside the done section and numeric total inside the end of the bar; the percentage is outside on the right. At zero completion the zero count appears inside the remainder bar. All counts remain available on hover.
 
 Case counts and the impersonation owner chart sit side by side before the process charts. Dashboard tables use escaped HTML for consistent first-column-left and remaining-columns-centered alignment. Original data downloads remain available.
+
+
+## Sheet-button processing report
+
+Open Google Sheet downloads exam_processing_report.csv and opens the original sheet in a new tab from the same user click. The report uses the currently loaded sheet snapshot (refresh first for newer changes) and covers all populated source rows, independent of dashboard filters. Sheet row numbers preserve blank-row positions.
+
+Report classifications distinguish Not processed (missing exam code or required columns), Partially processed - date issue (omitted by month filtering), Processed with warnings (such as missing/nonnumeric counts), and Processed. Missing optional case counts and blank activity cells are not processing errors. Cancelled exams are valid records with their existing exclusions. Negative or fractional numeric counts are flagged but their current dashboard treatment remains unchanged. Source URL and fetch time are included. Formula-like strings are exported as literal text for Excel safety.
+
+The report is CSV, as requested, and opens in Excel. The browser must allow downloads and opening a new tab for the app. No file is downloaded during page render; the action requires the user's click. The report remains available even when required columns cause dashboard preparation to fail, provided the sheet itself can be loaded.

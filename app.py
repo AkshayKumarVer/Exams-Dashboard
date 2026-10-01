@@ -6,6 +6,7 @@ from urllib.parse import quote
 import pandas as pd
 import requests
 import streamlit as st
+from validation_report import report_csv, sheet_button_html
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import AuthorizedSession
 from google.auth.exceptions import GoogleAuthError
@@ -42,7 +43,7 @@ def as_frame(rows, header_row):
             suffix += 1
         used.add(name)
         names.append(name)
-    values = [row + [""] * (width - len(row)) for row in rows[1:] if any(str(v).strip() for v in row)]
+    values = [row + [""] * (width - len(row)) for row in rows[1:]]
     return pd.DataFrame(values, columns=names)
 
 
@@ -199,12 +200,15 @@ h3 {color:#222222;font-size:1.55rem!important;letter-spacing:.045em;margin-top:1
 </style>''',unsafe_allow_html=True)
 st.title('PRODUCT DASHBOARD')
 with st.sidebar:
-    st.link_button('Open Google Sheet',SHEET_URL)
+    sheet_action = st.empty()
     if st.button('Refresh data',type='primary',width='stretch'):
         load_sheet.clear()
 try:
     with st.spinner('Loading exams...'):
         raw,fetched_at,mode = load_sheet(1)
+        audit_download = report_csv(raw, SHEET_URL, fetched_at)
+        with sheet_action.container():
+            st.iframe(sheet_button_html(audit_download, SHEET_URL), height=48)
         data,cancelled = prepare(raw)
 except (requests.RequestException,GoogleAuthError,ValueError,KeyError) as exc:
     st.error(str(exc) if isinstance(exc,ValueError) else 'Unable to load exams. Check the sheet connection and refresh.')

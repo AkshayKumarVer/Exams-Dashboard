@@ -70,8 +70,11 @@ def rollup(values):
     return 'N/A'
 
 
+REQUIRED_COLUMNS = ['Client', 'Exam code', 'Exam Date', 'Owner from Product', *NUMBERS.values(), *[v[1] for v in ACTIVITIES.values()], *CASE_COLUMNS.values()]
+
+
 def prepare(raw):
-    required = ['Client', 'Exam code', 'Exam Date', 'Owner from Product', *NUMBERS.values(), *[v[1] for v in ACTIVITIES.values()], *CASE_COLUMNS.values()]
+    required = REQUIRED_COLUMNS
     missing = sorted(set(required) - set(raw.columns))
     if missing:
         raise ValueError('Required columns missing: ' + ', '.join(missing))
