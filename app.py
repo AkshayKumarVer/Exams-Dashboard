@@ -135,9 +135,9 @@ def draw_process(frame, title):
         x=position('Completion %:Q'),x2='End:Q')
     done = chart.mark_bar(color='#469ec2',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
-    percentage = chart.mark_text(align='left',dx=10,color='#555555',fontWeight='bold',fontSize=14).encode(
+    percentage = chart.mark_text(align='left',dx=10,color='#243c57').encode(
         x=position('End:Q'),text='Percent label:N')
-    done_count = chart.mark_text(align='center',color='#555555',fontWeight='bold',fontSize=14).encode(
+    done_count = chart.mark_text(align='center',color='#243c57').encode(
         x=position('Count position:Q'),text='Count label:N')
     st.altair_chart((remainder+done+percentage+done_count)
                    .properties(height=420).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
