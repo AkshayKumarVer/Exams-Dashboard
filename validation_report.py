@@ -1,6 +1,12 @@
-﻿"""Read-only audit using the same parser and numeric rules as the dashboard."""
+"""Read-only audit using the same parser and numeric rules as the dashboard."""
 import pandas as pd
-from analytics import ACTIVITIES, CASE_COLUMNS, NUMBERS, REQUIRED_COLUMNS, parse_start, number
+from analytics import ACTIVITIES, CASE_COLUMNS, NUMBERS, parse_start, number
+
+# Derive the schema from established exports so a hot-reloaded app also works
+# when Streamlit still holds the prior analytics module in memory.
+REQUIRED_COLUMNS = ['Client', 'Exam code', 'Exam Date', 'Owner from Product',
+                    *NUMBERS.values(), *[source for _, source in ACTIVITIES.values()],
+                    *CASE_COLUMNS.values()]
 
 AUDIT_COLUMNS = ['Sheet row', 'Exam code', 'Client', 'Owner', 'Original date', 'Parsed start date',
                  'Processing result', 'Issues', 'Dashboard impact', 'Exam state']
