@@ -135,9 +135,9 @@ def draw_process(frame, title):
         x=position('Completion %:Q'),x2='End:Q')
     done = chart.mark_bar(color='#469ec2',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
-    percentage = chart.mark_text(align='left',dx=10,color='#243c57').encode(
+    percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Percent label:N')
-    done_count = chart.mark_text(align='center',color='#243c57').encode(
+    done_count = chart.mark_text(align='center',color='#ffffff',fontWeight='bold',fontSize=14).encode(
         x=position('Count position:Q'),text='Count label:N')
     st.altair_chart((remainder+done+percentage+done_count)
                    .properties(height=420).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
@@ -179,10 +179,10 @@ def draw_heatmap(frame, title):
         x=alt.X('Process:N', sort=list(ACTIVITIES), title=None,
                 axis=alt.Axis(orient='top', labelAngle=0, labelLimit=160,
                               ticks=False, domain=False, labelPadding=12),
-                scale=alt.Scale(paddingInner=0.05, paddingOuter=0.02)),
+                scale=alt.Scale(type='band', paddingInner=0.05, paddingOuter=0.02)),
         y=alt.Y('Owner:N', sort=sorted(frame.Owner.unique()), title=None,
                 axis=alt.Axis(ticks=False, domain=False, labelPadding=12),
-                scale=alt.Scale(paddingInner=0.12, paddingOuter=0.06)),
+                scale=alt.Scale(type='band', paddingInner=0.12, paddingOuter=0.06)),
         color=alt.Color('State:N', legend=None,
                         scale=alt.Scale(domain=['Complete','Not sent','WIP'],
                                         range=[COLORS['Complete'],COLORS['Not sent'],COLORS['WIP']])),
@@ -195,7 +195,7 @@ def draw_heatmap(frame, title):
                                          range=[COLORS['Complete'],COLORS['Not sent'],COLORS['WIP']])),
         strokeOpacity=alt.value(0.25))
     labels = heatmap.mark_text(fontSize=12, fontWeight=600).encode(text='Label:N')
-    st.altair_chart((backgrounds + labels).properties(height=max(52,frame.Owner.nunique()*52))
+    st.altair_chart((backgrounds + labels).properties(height=max(96,frame.Owner.nunique()*64))
                    .configure_view(stroke=None).configure(background='#ffffff'), width='stretch')
 
 
@@ -308,7 +308,7 @@ with impersonation_column:
             x=alt.X('Owner:N',sort=owner_order,title=None,axis=alt.Axis(labelAngle=0,ticks=False,domain=False)),
             xOffset=alt.XOffset('Case type:N',sort=['Reported','Found']),
             y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
-            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#a0d9ef','#469ec2'])),
+            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#469ec2','#a0d9ef'])),
             tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
         st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
