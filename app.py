@@ -135,9 +135,9 @@ def draw_process(frame, title):
         x=position('Completion %:Q'),x2='End:Q')
     done = chart.mark_bar(color='#469ec2',size=36).encode(
         x=position('Start:Q'),x2='Completion %:Q')
-    percentage = chart.mark_text(align='left',dx=10,color='#243c57',fontWeight='bold',fontSize=14).encode(
+    percentage = chart.mark_text(align='left',dx=10,color='#555555',fontWeight='bold',fontSize=14).encode(
         x=position('End:Q'),text='Percent label:N')
-    done_count = chart.mark_text(align='center',color='#142842',fontWeight='bold',fontSize=14).encode(
+    done_count = chart.mark_text(align='center',color='#555555',fontWeight='bold',fontSize=14).encode(
         x=position('Count position:Q'),text='Count label:N')
     st.altair_chart((remainder+done+percentage+done_count)
                    .properties(height=420).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
@@ -308,7 +308,7 @@ with impersonation_column:
             x=alt.X('Owner:N',sort=owner_order,title=None,axis=alt.Axis(labelAngle=0,ticks=False,domain=False)),
             xOffset=alt.XOffset('Case type:N',sort=['Reported','Found']),
             y=alt.Y('Plot:Q',title=None,axis=None,scale=alt.Scale(zero=True)),
-            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#469ec2','#a0d9ef'])),
+            color=alt.Color('Case type:N',title=None,scale=alt.Scale(domain=['Reported','Found'],range=['#a0d9ef','#469ec2'])),
             tooltip=['Owner:N','Case type:N',alt.Tooltip('Label:N',title='Cases')])
         st.altair_chart((chart.mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4)+chart.mark_text(dy=-10).encode(text='Label:N',color=alt.value('#243c57'))).properties(height=300).configure_view(stroke=None).configure(background='#ffffff'),width='stretch')
 
